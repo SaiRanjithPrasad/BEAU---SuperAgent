@@ -1,5 +1,8 @@
 from agents import Agent, Runner, function_tool
+from agents.models.multi_provider import MultiProvider
+from agents.run_config import RunConfig
 import asyncio
+import os
 from beau.core.config import OPENROUTER_MODEL, load_config
 from beau.core.prompts import JARVIS_PROMPT
 from beau.tools.actor import act
@@ -53,7 +56,16 @@ def list_jobs_tool() -> str:
 def get_beau_agent():
     return Agent(name="BEAU", instructions=JARVIS_PROMPT, model=OPENROUTER_MODEL, tools=[research_tool, act_tool, schedule_tool, unschedule_tool, list_jobs_tool])
 
+
+def _get_run_config():
+    provider = MultiProvider(
+        openai_api_key=os.getenv("OPENAI_API_KEY"),
+        openai_base_url=os.getenv("OPENAI_BASE_URL"),
+        unknown_prefix_mode="model_id",
+    )
+    return RunConfig(model=OPENROUTER_MODEL, model_provider=provider)
+
 async def run_beau(prompt: str) -> str:
     agent = get_beau_agent()
-    result = await Runner.run(agent, prompt)
+    result = await Runner.run(agent, prompt, run_config=_get_run_config())
     return result.final_output
