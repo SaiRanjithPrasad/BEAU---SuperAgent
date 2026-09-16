@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile
 from pydantic import BaseModel
 from beau.core.orchestrator import run_beau
+from beau.tools.actor import act
 from beau.tools.researcher import research
 app = FastAPI(title="BEAU SuperAgent")
 
@@ -37,6 +38,30 @@ async def stt(file: UploadFile):
 async def research_endpoint(req: ResearchReq):
     report = await research(req.query)
     return ResearchResp(report=report, summary=report[:200])
+
+class ActReq(BaseModel):
+    task: str
+    success_criteria: str = ""
+
+class ActResp(BaseModel):
+    result: str
+    needs_confirm: bool = False
+    command: str = ""
+
+@app.post("/v1/act", response_model=ActResp)
+async def act_endpoint(req: ActReq):
+    result = await act(req.task, req.success_criteria)
+    needs = "needs_confirm" in result
+    cmd = result.split("command:")[1].strip() if needs else ""
+    return ActResp(result=result, needs_confirm=needs, command=cmd)
+
+@app.post("/v1/act/confirm")
+async def act_confirm(req: ActReq):
+    # confirm destructive command
+    if req.success_criteria == "confirm":
+        result = await act(req.task, req.success_criteria)
+        return ActResp(result=result, needs_confirm=False)
+    return ActResp(result="not confirmed", needs_confirm=True, command=req.task)
 
 @app.get("/health")
 async def health(): return {"status": "ok"}
