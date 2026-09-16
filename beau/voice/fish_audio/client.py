@@ -1,9 +1,12 @@
 import inspect
+import logging
 import os
 
 import httpx
 
 from beau.core.config import FISH_AUDIO_API_KEY, FISH_AUDIO_USE_LOCAL, FISH_AUDIO_BASE_URL, FISH_AUDIO_VOICE_ID
+
+logger = logging.getLogger(__name__)
 
 try:
     from fish_audio_sdk import Session as FishAudioSDK  # fish-audio-python package provides this
@@ -34,10 +37,15 @@ class FishAudioClient:
         vid = voice_id or self.voice_id
         if self.use_local:
             # local fish-speech SGLang server
-            async with httpx.AsyncClient() as client:
-                r = await client.post(f"{self.base_url}/v1/tts", json={"text": text, "voice": vid}, timeout=20.0)
-                r.raise_for_status()
-                return r.content
+            try:
+                async with httpx.AsyncClient() as client:
+                    r = await client.post(f"{self.base_url}/v1/tts", json={"text": text, "voice": vid}, timeout=20.0)
+                    r.raise_for_status()
+                    return r.content
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429:
+                    logger.warning("FISH_AUDIO_429: local TTS rate limited")
+                raise
         if not self._sdk:
             raise RuntimeError("Fish Audio not configured: set FISH_AUDIO_API_KEY or FISH_AUDIO_USE_LOCAL=true")
         # cloud path - SDK requires TTSRequest(text, reference_id)
@@ -52,84 +60,100 @@ class FishAudioClient:
 
         tts_call = self._sdk.tts
 
-        # Prefer async streaming via awaitable if available (real SDK), else sync
-        # Need mock compatibility: MagicMock has awaitable but yields empty, so fallback to sync
-        if hasattr(tts_call, "awaitable"):
-            try:
-                maybe = tts_call.awaitable(request)
-                if hasattr(maybe, "__aiter__"):
-                    chunks = []
-                    try:
-                        async for chunk in maybe:  # type: ignore
-                            # filter out non-bytes mocks
-                            if isinstance(chunk, (bytes, bytearray)):
-                                chunks.append(chunk)
-                            elif chunk is not None:
-                                # if mock yields MagicMock, ignore
-                                pass
-                    except TypeError:
+        # Wrap cloud SDK calls to handle 429 with optional local fallback
+        try:
+            # Prefer async streaming via awaitable if available (real SDK), else sync
+            # Need mock compatibility: MagicMock has awaitable but yields empty, so fallback to sync
+            if hasattr(tts_call, "awaitable"):
+                try:
+                    maybe = tts_call.awaitable(request)
+                    if hasattr(maybe, "__aiter__"):
                         chunks = []
-                    except Exception:
-                        chunks = []
-                    if chunks:
-                        return b"".join(chunks)
-                    # empty chunks likely indicates mock or empty stream; fall through to sync path
-                    # but if maybe was truly empty (no audio), still correctly return b""
-                    # Check if maybe was a real empty generator: we still fall through and try sync
-                    # To avoid infinite fallback loop, only fall through if chunks empty and not a real empty response
-                    # For real SDK empty would still be empty; sync would also be empty, so returning b"" is fine
-                    # Continue to sync fallback if no bytes yielded
-                if inspect.isawaitable(maybe):
-                    maybe = await maybe
+                        try:
+                            async for chunk in maybe:  # type: ignore
+                                # filter out non-bytes mocks
+                                if isinstance(chunk, (bytes, bytearray)):
+                                    chunks.append(chunk)
+                                elif chunk is not None:
+                                    # if mock yields MagicMock, ignore
+                                    pass
+                        except TypeError:
+                            chunks = []
+                        except Exception:
+                            chunks = []
+
+                        if chunks:
+                            return b"".join(chunks)
+                        # empty chunks likely indicates mock or empty stream; fall through to sync path
+                        # but if maybe was truly empty (no audio), still correctly return b""
+                        # Check if maybe was a real empty generator: we still fall through and try sync
+                        # To avoid infinite fallback loop, only fall through if chunks empty and not a real empty response
+                        # For real SDK empty would still be empty; sync would also be empty, so returning b"" is fine
+                        # Continue to sync fallback if no bytes yielded
+                    if inspect.isawaitable(maybe):
+                        maybe = await maybe
+                        if isinstance(maybe, (bytes, bytearray)):
+                            return bytes(maybe)
                     if isinstance(maybe, (bytes, bytearray)):
                         return bytes(maybe)
-                if isinstance(maybe, (bytes, bytearray)):
-                    return bytes(maybe)
-            except TypeError:
-                # signature mismatch (mock expects str) - try with plain text
-                try:
-                    maybe2 = tts_call.awaitable(text)
-                    if hasattr(maybe2, "__aiter__"):
-                        chunks2 = []
-                        async for chunk in maybe2:  # type: ignore
-                            if isinstance(chunk, (bytes, bytearray)):
-                                chunks2.append(chunk)
-                        if chunks2:
-                            return b"".join(chunks2)
-                    if inspect.isawaitable(maybe2):
-                        maybe2 = await maybe2
-                    if isinstance(maybe2, (bytes, bytearray)):
-                        return bytes(maybe2)
+                except TypeError:
+                    # signature mismatch (mock expects str) - try with plain text
+                    try:
+                        maybe2 = tts_call.awaitable(text)
+                        if hasattr(maybe2, "__aiter__"):
+                            chunks2 = []
+                            async for chunk in maybe2:  # type: ignore
+                                if isinstance(chunk, (bytes, bytearray)):
+                                    chunks2.append(chunk)
+                            if chunks2:
+                                return b"".join(chunks2)
+                        if inspect.isawaitable(maybe2):
+                            maybe2 = await maybe2
+                        if isinstance(maybe2, (bytes, bytearray)):
+                            return bytes(maybe2)
+                    except Exception:
+                        pass
                 except Exception:
                     pass
-            except Exception:
-                pass
 
-        # Sync fallback (handles mock b"fake_wav" and real SDK sync Generator[bytes])
-        try:
-            result = tts_call(request)
-        except TypeError:
-            # mock compatibility: if request is TTSRequest but mock expects str
-            result = tts_call(text)
-
-        # Handle various SDK return types: awaitable bytes, sync bytes, streaming generator
-        if inspect.isawaitable(result):
-            result = await result
-        if hasattr(result, "__aiter__"):
-            chunks = []
-            async for chunk in result:
-                chunks.append(chunk)
-            return b"".join(chunks)
-        if hasattr(result, "__iter__") and not isinstance(result, (bytes, bytearray)):
+            # Sync fallback (handles mock b"fake_wav" and real SDK sync Generator[bytes])
             try:
-                chunks = list(result)
-                if chunks and isinstance(chunks[0], (bytes, bytearray)):
-                    return b"".join(chunks)
-            except Exception:
-                pass
-        if isinstance(result, (bytes, bytearray)):
-            return bytes(result)
-        # Fallback: unknown SDK shape - return empty (brief fallback: await tts or b"")
-        if hasattr(self._sdk, "tts"):
+                result = tts_call(request)
+            except TypeError:
+                # mock compatibility: if request is TTSRequest but mock expects str
+                result = tts_call(text)
+
+            # Handle various SDK return types: awaitable bytes, sync bytes, streaming generator
+            if inspect.isawaitable(result):
+                result = await result
+            if hasattr(result, "__aiter__"):
+                chunks = []
+                async for chunk in result:
+                    chunks.append(chunk)
+                return b"".join(chunks)
+            if hasattr(result, "__iter__") and not isinstance(result, (bytes, bytearray)):
+                try:
+                    chunks = list(result)
+                    if chunks and isinstance(chunks[0], (bytes, bytearray)):
+                        return b"".join(chunks)
+                except Exception:
+                    pass
+            if isinstance(result, (bytes, bytearray)):
+                return bytes(result)
+            # Fallback: unknown SDK shape - return empty (brief fallback: await tts or b"")
+            if hasattr(self._sdk, "tts"):
+                return b""
             return b""
-        return b""
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                logger.warning("FISH_AUDIO_429: cloud TTS rate limited")
+                if self.use_local:
+                    # fallback to local server if configured
+                    try:
+                        async with httpx.AsyncClient() as client:
+                            r = await client.post(f"{self.base_url}/v1/tts", json={"text": text, "voice": vid}, timeout=20.0)
+                            r.raise_for_status()
+                            return r.content
+                    except Exception:
+                        pass
+            raise

@@ -1,4 +1,3 @@
-import os
 from agents import Agent, Runner
 from beau.core.config import OPENROUTER_MODEL, load_config
 from beau.core.prompts import JARVIS_PROMPT

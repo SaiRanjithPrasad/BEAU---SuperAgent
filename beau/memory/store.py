@@ -12,5 +12,14 @@ class MemoryStore:
         with sqlite3.connect(self.path) as c: c.execute("INSERT INTO memory(user,assistant) VALUES(?,?)", (user, assistant))
     def recall(self, query: str, k=5):
         with sqlite3.connect(self.path) as c:
-            rows = c.execute("SELECT user, assistant FROM memory ORDER BY id DESC LIMIT ?", (k,)).fetchall()
+            if query:
+                rows = c.execute(
+                    "SELECT user, assistant FROM memory WHERE user LIKE ? OR assistant LIKE ? ORDER BY id DESC LIMIT ?",
+                    (f"%{query}%", f"%{query}%", k),
+                ).fetchall()
+                # fallback to recent if no LIKE matches but still respect query intent
+                if not rows:
+                    rows = c.execute("SELECT user, assistant FROM memory ORDER BY id DESC LIMIT ?", (k,)).fetchall()
+            else:
+                rows = c.execute("SELECT user, assistant FROM memory ORDER BY id DESC LIMIT ?", (k,)).fetchall()
             return "\n".join(f"U:{u} A:{a}" for u,a in rows)
