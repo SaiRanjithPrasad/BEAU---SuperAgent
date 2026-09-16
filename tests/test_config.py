@@ -19,3 +19,8 @@ def test_config_fish_audio_defaults(monkeypatch):
     cfg.load_config()
     assert cfg.FISH_AUDIO_USE_LOCAL is False
     assert cfg.FISH_AUDIO_BASE_URL == "https://api.fish.audio"
+
+def test_how_many_searches_default():
+    import importlib, beau.core.config as cfg
+    importlib.reload(cfg)
+    assert cfg.HOW_MANY_SEARCHES == 3

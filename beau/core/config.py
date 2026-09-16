@@ -22,6 +22,8 @@ REVENUECAT_ENTITLEMENT = os.getenv("REVENUECAT_ENTITLEMENT", "beau_pro")
 BEAU_MEMORY_PATH = os.getenv("BEAU_MEMORY_PATH", "./data/beau.db")
 BEAU_API_PORT = int(os.getenv("BEAU_API_PORT", "7860"))
 
+HOW_MANY_SEARCHES = int(os.getenv("HOW_MANY_SEARCHES", 3))
+
 DEFAULT_MODEL_NAME = OPENROUTER_MODEL
 
 def load_config():
