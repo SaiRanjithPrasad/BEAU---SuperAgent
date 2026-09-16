@@ -1,0 +1,22 @@
+[project]
+name = "beau-superagent"
+version = "0.1.0"
+description = "BEAU - Jarvis-like SuperAgent with Muse Spark + Fish Audio"
+requires-python = ">=3.12"
+dependencies = [
+    "openai>=1.0",
+    "openai-agents>=0.0.1",
+    "langchain-openai>=0.3",
+    "gradio>=5.0",
+    "fastapi>=0.110",
+    "uvicorn>=0.30",
+    "python-dotenv>=1.0",
+    "fish-audio-python>=0.1",
+    "faster-whisper>=1.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
