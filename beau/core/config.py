@@ -1,6 +1,8 @@
 import os
 from dotenv import load_dotenv
-load_dotenv(override=True)
+# override=False so process env (tests, CI, Docker) wins over .env file —
+# override=True would let .env clobber monkeypatched/test env vars.
+load_dotenv(override=False)
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
@@ -12,6 +14,9 @@ FISH_AUDIO_API_KEY = os.getenv("FISH_AUDIO_API_KEY", "")
 FISH_AUDIO_USE_LOCAL = os.getenv("FISH_AUDIO_USE_LOCAL", "false").lower() == "true"
 FISH_AUDIO_BASE_URL = os.getenv("FISH_AUDIO_BASE_URL", "https://api.fish.audio")
 FISH_AUDIO_VOICE_ID = os.getenv("FISH_AUDIO_VOICE_ID", "beau_jarvis")
+
+TTS_PROVIDER = os.getenv("TTS_PROVIDER", "auto")  # auto | fish_audio | edge | piper
+EDGE_TTS_VOICE = os.getenv("EDGE_TTS_VOICE", "en-US-JennyNeural")
 
 STT_PROVIDER = os.getenv("STT_PROVIDER", "faster_whisper")
 HERMES_ENABLED = os.getenv("HERMES_ENABLED", "true").lower() == "true"

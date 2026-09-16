@@ -21,11 +21,10 @@ async def chat(req: ChatReq):
 
 @app.post("/v1/audio/speech")
 async def tts(req: ChatReq):
-    from beau.voice.fish_audio.client import FishAudioClient
-    c = FishAudioClient()
-    wav = await c.tts(req.message)
+    from beau.voice.tts_provider import speak
+    wav, provider = await speak(req.message)
     from fastapi.responses import Response
-    return Response(content=wav, media_type="audio/wav")
+    return Response(content=wav, media_type="audio/wav", headers={"X-TTS-Provider": provider})
 
 @app.post("/v1/audio/transcriptions")
 async def stt(file: UploadFile):
