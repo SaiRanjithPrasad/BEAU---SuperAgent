@@ -9,6 +9,7 @@ OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/ap
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", os.getenv("DEFAULT_MODEL_NAME", "meta/muse-spark-1.2-contributor"))
 if not os.getenv("OPENROUTER_MODEL") and os.getenv("WORKER_MODEL"):
     OPENROUTER_MODEL = os.getenv("WORKER_MODEL")
+OPENROUTER_FALLBACK_MODEL = os.getenv("OPENROUTER_FALLBACK_MODEL", "google/gemini-2.5-pro")
 
 FISH_AUDIO_API_KEY = os.getenv("FISH_AUDIO_API_KEY", "")
 FISH_AUDIO_USE_LOCAL = os.getenv("FISH_AUDIO_USE_LOCAL", "false").lower() == "true"

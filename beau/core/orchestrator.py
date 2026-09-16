@@ -2,13 +2,15 @@ from agents import Agent, Runner, function_tool
 from agents.models.multi_provider import MultiProvider
 from agents.run_config import RunConfig
 import asyncio
+import logging
 import os
-from beau.core.config import OPENROUTER_MODEL, load_config
+from beau.core.config import OPENROUTER_MODEL, OPENROUTER_FALLBACK_MODEL, load_config
 from beau.core.prompts import JARVIS_PROMPT
 from beau.tools.actor import act
 from beau.tools.researcher import research
 from beau.tools.scheduler import schedule, unschedule, list_jobs
 
+logger = logging.getLogger(__name__)
 load_config()
 
 def _run_async(coro):
@@ -53,19 +55,25 @@ def list_jobs_tool() -> str:
     return json.dumps(list_jobs())
 
 
-def get_beau_agent():
-    return Agent(name="BEAU", instructions=JARVIS_PROMPT, model=OPENROUTER_MODEL, tools=[research_tool, act_tool, schedule_tool, unschedule_tool, list_jobs_tool])
+def get_beau_agent(model: str = OPENROUTER_MODEL):
+    return Agent(name="BEAU", instructions=JARVIS_PROMPT, model=model, tools=[research_tool, act_tool, schedule_tool, unschedule_tool, list_jobs_tool])
 
 
-def _get_run_config():
+def _get_run_config(model: str = OPENROUTER_MODEL):
     provider = MultiProvider(
         openai_api_key=os.getenv("OPENAI_API_KEY"),
         openai_base_url=os.getenv("OPENAI_BASE_URL"),
         unknown_prefix_mode="model_id",
     )
-    return RunConfig(model=OPENROUTER_MODEL, model_provider=provider)
+    return RunConfig(model=model, model_provider=provider)
 
 async def run_beau(prompt: str) -> str:
-    agent = get_beau_agent()
-    result = await Runner.run(agent, prompt, run_config=_get_run_config())
-    return result.final_output
+    for model in (OPENROUTER_MODEL, OPENROUTER_FALLBACK_MODEL):
+        agent = get_beau_agent(model)
+        config = _get_run_config(model)
+        try:
+            result = await Runner.run(agent, prompt, run_config=config)
+            return result.final_output
+        except Exception as e:
+            logger.warning("run_beau failed on %s: %s — trying fallback", model, e)
+    raise RuntimeError("All OpenRouter models failed")
