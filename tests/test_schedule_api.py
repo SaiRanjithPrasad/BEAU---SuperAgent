@@ -29,3 +29,16 @@ def test_list_schedule_api():
         r = client.get("/v1/schedule")
         assert r.status_code == 200
         assert len(r.json()["jobs"]) == 1
+
+
+def test_lifespan_starts_and_stops_scheduler():
+    with patch("beau.api.server.start", return_value=2) as mock_start, \
+         patch("beau.api.server.stop") as mock_stop:
+        from beau.api.server import app, lifespan
+        import asyncio
+        async def run():
+            async with lifespan(app):
+                pass
+        asyncio.run(run())
+        mock_start.assert_called_once()
+        mock_stop.assert_called_once()

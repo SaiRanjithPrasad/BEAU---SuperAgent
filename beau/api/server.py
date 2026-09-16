@@ -1,9 +1,23 @@
 from fastapi import FastAPI, UploadFile
 from pydantic import BaseModel
+from contextlib import asynccontextmanager
 from beau.core.orchestrator import run_beau
 from beau.tools.actor import act
 from beau.tools.researcher import research
-app = FastAPI(title="BEAU SuperAgent")
+from beau.tools.scheduler import start, stop
+
+@asynccontextmanager
+async def lifespan(app):
+    started = start()
+    if started:
+        from beau.core.config import BEAU_MEMORY_PATH
+        print(f"[BEAU] scheduler started {started} job(s), db={BEAU_MEMORY_PATH}")
+    try:
+        yield
+    finally:
+        stop()
+
+app = FastAPI(title="BEAU SuperAgent", lifespan=lifespan)
 
 class ChatReq(BaseModel): message: str
 class ChatResp(BaseModel): reply: str
