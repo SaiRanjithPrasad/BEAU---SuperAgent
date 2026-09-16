@@ -1,0 +1,23 @@
+# fish-speech SGLang server for local TTS (Phase 5)
+# Usage: docker compose -f compose.yml up -d
+# S2 Pro models auto-download on first run (~3GB)
+# AMD64 image on ARM64 host runs via Colima QEMU emulation
+# Connects to BEAU via FISH_AUDIO_BASE_URL=http://host.docker.internal:8000
+services:
+  fish-speech:
+    image: fishaudio/fish-speech:latest
+    container_name: beau-fish-speech
+    platform: linux/amd64
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data/fish-speech-models:/models
+    environment:
+      - MODEL_ID=fish-speech-1.5
+      - CUDA_VISIBLE_DEVICES=
+      - PORT=8000
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 8G
