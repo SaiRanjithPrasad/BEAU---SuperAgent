@@ -1,10 +1,17 @@
 from fastapi import FastAPI, UploadFile
 from pydantic import BaseModel
 from beau.core.orchestrator import run_beau
+from beau.tools.researcher import research
 app = FastAPI(title="BEAU SuperAgent")
 
 class ChatReq(BaseModel): message: str
 class ChatResp(BaseModel): reply: str
+
+class ResearchReq(BaseModel):
+    query: str
+class ResearchResp(BaseModel):
+    report: str
+    summary: str
 
 @app.post("/v1/chat", response_model=ChatResp)
 async def chat(req: ChatReq):
@@ -25,6 +32,11 @@ async def stt(file: UploadFile):
     data = await file.read()
     text = await get_stt().transcribe(data)
     return {"text": text}
+
+@app.post("/v1/research", response_model=ResearchResp)
+async def research_endpoint(req: ResearchReq):
+    report = await research(req.query)
+    return ResearchResp(report=report, summary=report[:200])
 
 @app.get("/health")
 async def health(): return {"status": "ok"}
