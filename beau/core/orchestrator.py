@@ -4,6 +4,7 @@ from beau.core.config import OPENROUTER_MODEL, load_config
 from beau.core.prompts import JARVIS_PROMPT
 from beau.tools.actor import act
 from beau.tools.researcher import research
+from beau.tools.scheduler import schedule, unschedule, list_jobs
 
 load_config()
 
@@ -24,14 +25,33 @@ def _run_async(coro):
 def research_tool(query: str) -> str:
     """Research a query using lean planner→search→writer pipeline (cheap, knowledge-only)."""
     return _run_async(research(query))
-
 @function_tool
 def act_tool(task: str, success_criteria: str = "") -> str:
     """Act on a task using sandboxed sidekick (file+shell+full tools) with human_confirm."""
     return _run_async(act(task, success_criteria))
 
+
+@function_tool
+def schedule_tool(kind: str, payload: str, every_secs: float, user_id: str = "local", premium: bool = False) -> str:
+    """Schedule a recurring BEAU job (chat/research/act). Returns job_id."""
+    return schedule(kind, payload, every_secs, user_id, premium)
+
+
+@function_tool
+def unschedule_tool(job_id: str) -> str:
+    """Cancel a scheduled job."""
+    return "ok" if unschedule(job_id) else "unknown job"
+
+
+@function_tool
+def list_jobs_tool() -> str:
+    """List scheduled jobs."""
+    import json
+    return json.dumps(list_jobs())
+
+
 def get_beau_agent():
-    return Agent(name="BEAU", instructions=JARVIS_PROMPT, model=OPENROUTER_MODEL, tools=[research_tool, act_tool])
+    return Agent(name="BEAU", instructions=JARVIS_PROMPT, model=OPENROUTER_MODEL, tools=[research_tool, act_tool, schedule_tool, unschedule_tool, list_jobs_tool])
 
 async def run_beau(prompt: str) -> str:
     agent = get_beau_agent()

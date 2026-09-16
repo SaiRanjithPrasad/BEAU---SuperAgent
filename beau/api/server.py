@@ -62,5 +62,34 @@ async def act_confirm(req: ActReq):
         return ActResp(result=result, needs_confirm=False)
     return ActResp(result="not confirmed", needs_confirm=True, command=req.task)
 
+
+class ScheduleReq(BaseModel):
+    kind: str
+    payload: str
+    every_secs: float
+    user_id: str = "local"
+    premium: bool = False
+
+
+@app.post("/v1/schedule")
+async def schedule_endpoint(req: ScheduleReq):
+    from beau.tools.scheduler import schedule
+    job_id = schedule(req.kind, req.payload, req.every_secs, req.user_id, req.premium)
+    return {"job_id": job_id, "status": "scheduled"}
+
+
+@app.delete("/v1/schedule/{job_id}")
+async def unschedule_endpoint(job_id: str):
+    from beau.tools.scheduler import unschedule
+    ok = unschedule(job_id)
+    return {"job_id": job_id, "removed": ok}
+
+
+@app.get("/v1/schedule")
+async def list_schedule():
+    from beau.tools.scheduler import list_jobs
+    return {"jobs": list_jobs()}
+
+
 @app.get("/health")
 async def health(): return {"status": "ok"}
