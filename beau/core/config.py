@@ -18,6 +18,10 @@ FISH_AUDIO_VOICE_ID = os.getenv("FISH_AUDIO_VOICE_ID", "beau_jarvis")
 TTS_PROVIDER = os.getenv("TTS_PROVIDER", "auto")  # auto | fish_audio | edge | piper
 EDGE_TTS_VOICE = os.getenv("EDGE_TTS_VOICE", "en-US-JennyNeural")
 
+# Piper — offline TTS fallback (voice models in PIPER_VOICE_DIR)
+PIPER_VOICE_DIR = os.getenv("PIPER_VOICE_DIR", "./data/piper-voices")
+PIPER_VOICE = os.getenv("PIPER_VOICE", "en_US-lessac-medium")
+
 STT_PROVIDER = os.getenv("STT_PROVIDER", "faster_whisper")
 HERMES_ENABLED = os.getenv("HERMES_ENABLED", "true").lower() == "true"
 HERMES_BROWSER_MCP_URL = os.getenv("HERMES_BROWSER_MCP_URL", "http://localhost:3000/mcp")
