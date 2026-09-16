@@ -7,15 +7,28 @@ from beau.tools.researcher import research
 
 load_config()
 
+def _run_async(coro):
+    """Run coroutine safely whether or not an event loop is already running."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if loop and loop.is_running():
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            return pool.submit(asyncio.run, coro).result()
+    return asyncio.run(coro)
+
 @function_tool
 def research_tool(query: str) -> str:
     """Research a query using lean planner→search→writer pipeline (cheap, knowledge-only)."""
-    return asyncio.run(research(query))
+    return _run_async(research(query))
 
 @function_tool
 def act_tool(task: str, success_criteria: str = "") -> str:
     """Act on a task using sandboxed sidekick (file+shell+full tools) with human_confirm."""
-    return asyncio.run(act(task, success_criteria))
+    return _run_async(act(task, success_criteria))
 
 def get_beau_agent():
     return Agent(name="BEAU", instructions=JARVIS_PROMPT, model=OPENROUTER_MODEL, tools=[research_tool, act_tool])

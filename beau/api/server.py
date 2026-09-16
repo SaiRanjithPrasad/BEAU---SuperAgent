@@ -57,9 +57,9 @@ async def act_endpoint(req: ActReq):
 
 @app.post("/v1/act/confirm")
 async def act_confirm(req: ActReq):
-    # confirm destructive command
+    # confirm destructive command — bypass guard and execute directly
     if req.success_criteria == "confirm":
-        result = await act(req.task, req.success_criteria)
+        result = await act(req.task, req.success_criteria, confirmed=True)
         return ActResp(result=result, needs_confirm=False)
     return ActResp(result="not confirmed", needs_confirm=True, command=req.task)
 
